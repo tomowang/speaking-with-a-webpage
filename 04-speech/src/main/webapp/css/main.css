@@ -132,6 +132,14 @@ section > * {
 #transcript>div:empty {
   visibility: hidden;
 }
+#lang-container {
+  display: block;
+  margin: 10px;
+}
+label {
+  width: 160px;
+  display: inline-block;
+}
 .hide {
   display: none;
 }

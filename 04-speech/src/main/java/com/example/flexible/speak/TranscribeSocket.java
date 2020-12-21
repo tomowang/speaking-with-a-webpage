@@ -74,7 +74,7 @@ public class TranscribeSocket extends WebSocketAdapter
       this.constraints = gson.fromJson(message, Constraints.class);
       logger.info(String.format("Got sampleRate: %s", this.constraints.sampleRate));
       logger.info(String.format("Source language: %s", this.constraints.srcLang));
-      logger.info(String.format("Translate to: %s", this.constraints.destLang));
+      logger.info(String.format("Translate to: %s", java.util.Arrays.toString(this.constraints.destLangs)));
 
       try {
         speech = SpeechClient.create();
@@ -147,24 +147,27 @@ public class TranscribeSocket extends WebSocketAdapter
       StreamingRecognitionResult result = results.get(0);
       logger.info("Got result " + result);
       String translatedText = "";
-      if (result.getIsFinal()) {
-        String transcript = result.getAlternatives(0).getTranscript();
-        logger.info("got transcript: " + transcript);
-        LocationName parent = LocationName.of(projectId, "global");
-        TranslationServiceClient client = TranslationServiceClient.create();
-        TranslateTextRequest request = TranslateTextRequest.newBuilder()
-                .setParent(parent.toString())
-                .setMimeType("text/plain")
-                .setTargetLanguageCode(constraints.destLang)
-                .addContents(transcript)
-                .build();
-        TranslateTextResponse res = client.translateText(request);
-        translatedText = res.getTranslations(0).getTranslatedText();
-        logger.info("translated text: " + translatedText);
-      }
       WSResponse wsResponse = new WSResponse();
       wsResponse.speechResult = result;
-      wsResponse.translatedText = translatedText;
+      if (result.getIsFinal()) {
+        wsResponse.translatedText = new String[constraints.destLangs.length];
+        String transcript = result.getAlternatives(0).getTranscript();
+        for (int i=0; i < constraints.destLangs.length; i++) {
+          logger.info("got transcript: " + transcript);
+          LocationName parent = LocationName.of(projectId, "global");
+          TranslationServiceClient client = TranslationServiceClient.create();
+          TranslateTextRequest request = TranslateTextRequest.newBuilder()
+                  .setParent(parent.toString())
+                  .setMimeType("text/plain")
+                  .setTargetLanguageCode(constraints.destLangs[i])
+                  .addContents(transcript)
+                  .build();
+          TranslateTextResponse res = client.translateText(request);
+          translatedText = res.getTranslations(0).getTranslatedText();
+          logger.info("translated text: " + translatedText);
+          wsResponse.translatedText[i] = translatedText;
+        }
+      }
       getRemote().sendString(gson.toJson(wsResponse));
     } catch (IOException e) {
       logger.log(Level.WARNING, "Error sending to websocket", e);

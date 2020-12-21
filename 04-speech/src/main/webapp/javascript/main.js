@@ -15,6 +15,7 @@
 (function initLangSelection() {
   var speechLangsSelect = document.getElementById('src');
   var translateLangsSelect = document.getElementById('dest');
+  var translateLangsSelect2 = document.getElementById('dest2');
 
   for (var i = 0; i < speechLangs.length; i++) {
     var option = document.createElement("option");
@@ -31,6 +32,14 @@
     translateLangsSelect.appendChild(option);
   }
   translateLangsSelect.value = 'en';
+
+  for (var i = 0; i < translateLangs.length; i++) {
+    var option = document.createElement("option");
+    option.text = translateLangs[i].lang;
+    option.value = translateLangs[i].langCode;
+    translateLangsSelect2.appendChild(option);
+  }
+  translateLangsSelect2.value = 'fr';
 })();
 
 
@@ -129,6 +138,11 @@
 
   var speechLangsSelect = document.getElementById('src');
   var translateLangsSelect = document.getElementById('dest');
+  var translateLangsSelect2 = document.getElementById('dest2');
+  var destLangs = [
+    translateLangsSelect.value,
+    translateLangsSelect2.value
+  ];
 
   var analyser;
 
@@ -256,7 +270,7 @@
         socket.send(JSON.stringify({
           sampleRate: context.sampleRate,
           srcLang: speechLangsSelect.value,
-          destLang: translateLangsSelect.value,
+          destLangs: destLangs,
         }));
 
       }).catch(console.log.bind(console));
@@ -293,7 +307,9 @@
       if (result.alternatives_) {
         var text = result.alternatives_[0].transcript_;
         if (translatedText) {
-          text += "(" + translatedText + ")";
+          for (var i = 0; i<translatedText.length; i++) {
+            text += '<br>' + destLangs[i] + ': ' + translatedText[i];
+          }
         }
         transcript.current.innerHTML = text;
       }

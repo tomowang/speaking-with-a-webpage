@@ -12,6 +12,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+(function initLangSelection() {
+  var speechLangsSelect = document.getElementById('src');
+  var translateLangsSelect = document.getElementById('dest');
+
+  for (var i = 0; i < speechLangs.length; i++) {
+    var option = document.createElement("option");
+    option.text = speechLangs[i].lang;
+    option.value = speechLangs[i].langCode;
+    speechLangsSelect.appendChild(option);
+  }
+  speechLangsSelect.value = 'zh';
+
+  for (var i = 0; i < translateLangs.length; i++) {
+    var option = document.createElement("option");
+    option.text = translateLangs[i].lang;
+    option.value = translateLangs[i].langCode;
+    translateLangsSelect.appendChild(option);
+  }
+  translateLangsSelect.value = 'en';
+})();
+
+
 (function helperDrawingFunctions() {
   CanvasRenderingContext2D.prototype.line = function(x1, y1, x2, y2) {
     this.lineCap = 'round';
@@ -67,6 +89,7 @@
 (function playButtonHandler() {
   // The play button is the canonical state, which changes via events.
   var playButton = document.getElementById('playbutton');
+  var langContainer = document.getElementById('lang-container');
 
   playButton.addEventListener('click', function(e) {
     if (this.classList.contains('playing')) {
@@ -79,9 +102,11 @@
   // Update the appearance when the state changes
   playButton.addEventListener('play', function(e) {
     this.classList.add('playing');
+    langContainer.classList.add('hide');
   });
   playButton.addEventListener('pause', function(e) {
     this.classList.remove('playing');
+    langContainer.classList.remove('hide');
   });
 })();
 
@@ -101,6 +126,9 @@
 
   const CANVAS_HEIGHT = canvas.height;
   const CANVAS_WIDTH = canvas.width;
+
+  var speechLangsSelect = document.getElementById('src');
+  var translateLangsSelect = document.getElementById('dest');
 
   var analyser;
 
@@ -225,7 +253,11 @@
           startByteStream(e);
         }, {once: true});
 
-        socket.send(JSON.stringify({sampleRate: context.sampleRate}));
+        socket.send(JSON.stringify({
+          sampleRate: context.sampleRate,
+          srcLang: speechLangsSelect.value,
+          destLang: translateLangsSelect.value,
+        }));
 
       }).catch(console.log.bind(console));
     }
@@ -254,9 +286,16 @@
      * This function is called with the transcription result from the server.
      */
     function onTranscription(e) {
-      var result = JSON.parse(e.data);
+      var response = JSON.parse(e.data);
+      console.log(response);
+      var result = response.speechResult;
+      var translatedText = response.translatedText;
       if (result.alternatives_) {
-        transcript.current.innerHTML = result.alternatives_[0].transcript_;
+        var text = result.alternatives_[0].transcript_;
+        if (translatedText) {
+          text += "(" + translatedText + ")";
+        }
+        transcript.current.innerHTML = text;
       }
       if (result.isFinal_) {
         transcript.current = document.createElement('div');

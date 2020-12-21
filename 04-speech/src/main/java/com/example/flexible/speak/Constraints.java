@@ -20,4 +20,6 @@ package com.example.flexible.speak;
  */
 class Constraints {
   public int sampleRate;
+  public String srcLang;
+  public String destLang;
 }

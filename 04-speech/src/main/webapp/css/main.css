@@ -132,3 +132,6 @@ section > * {
 #transcript>div:empty {
   visibility: hidden;
 }
+.hide {
+  display: none;
+}

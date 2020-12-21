@@ -18,23 +18,20 @@ package com.example.flexible.speak;
 
 import com.google.api.gax.rpc.ApiStreamObserver;
 import com.google.api.gax.rpc.BidiStreamingCallable;
-import com.google.cloud.speech.v1.RecognitionConfig;
+import com.google.cloud.speech.v1.*;
 import com.google.cloud.speech.v1.RecognitionConfig.AudioEncoding;
-import com.google.cloud.speech.v1.SpeechClient;
-import com.google.cloud.speech.v1.StreamingRecognitionConfig;
-import com.google.cloud.speech.v1.StreamingRecognitionResult;
-import com.google.cloud.speech.v1.StreamingRecognizeRequest;
-import com.google.cloud.speech.v1.StreamingRecognizeResponse;
+import com.google.cloud.translate.v3.LocationName;
+import com.google.cloud.translate.v3.TranslateTextRequest;
+import com.google.cloud.translate.v3.TranslateTextResponse;
+import com.google.cloud.translate.v3.TranslationServiceClient;
 import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
-import io.grpc.auth.ClientAuthInterceptor;
 import org.eclipse.jetty.websocket.api.WebSocketAdapter;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -45,9 +42,13 @@ public class TranscribeSocket extends WebSocketAdapter
   ApiStreamObserver<StreamingRecognizeRequest> requestObserver;
   private Gson gson;
   SpeechClient speech;
+  Constraints constraints;
+  private String projectId;
 
   public TranscribeSocket() {
     gson = new Gson();
+    Map<String, String> env = System.getenv();
+    projectId = env.get("GCP_PROJECT_ID");
   }
 
   /**
@@ -70,8 +71,10 @@ public class TranscribeSocket extends WebSocketAdapter
   @Override
   public void onWebSocketText(String message) {
     if (isConnected()) {
-      Constraints constraints = gson.fromJson(message, Constraints.class);
-      logger.info(String.format("Got sampleRate: %s", constraints.sampleRate));
+      this.constraints = gson.fromJson(message, Constraints.class);
+      logger.info(String.format("Got sampleRate: %s", this.constraints.sampleRate));
+      logger.info(String.format("Source language: %s", this.constraints.srcLang));
+      logger.info(String.format("Translate to: %s", this.constraints.destLang));
 
       try {
         speech = SpeechClient.create();
@@ -85,7 +88,7 @@ public class TranscribeSocket extends WebSocketAdapter
             RecognitionConfig.newBuilder()
             .setEncoding(AudioEncoding.LINEAR16)
             .setSampleRateHertz(constraints.sampleRate)
-            .setLanguageCode("en-US")
+            .setLanguageCode(constraints.srcLang)
             .build();
         StreamingRecognitionConfig streamingConfig =
             StreamingRecognitionConfig.newBuilder()
@@ -143,8 +146,26 @@ public class TranscribeSocket extends WebSocketAdapter
     try {
       StreamingRecognitionResult result = results.get(0);
       logger.info("Got result " + result);
-      //String transcript = result.getAlternatives(0).getTranscript();
-      getRemote().sendString(gson.toJson(result));
+      String translatedText = "";
+      if (result.getIsFinal()) {
+        String transcript = result.getAlternatives(0).getTranscript();
+        logger.info("got transcript: " + transcript);
+        LocationName parent = LocationName.of(projectId, "global");
+        TranslationServiceClient client = TranslationServiceClient.create();
+        TranslateTextRequest request = TranslateTextRequest.newBuilder()
+                .setParent(parent.toString())
+                .setMimeType("text/plain")
+                .setTargetLanguageCode(constraints.destLang)
+                .addContents(transcript)
+                .build();
+        TranslateTextResponse res = client.translateText(request);
+        translatedText = res.getTranslations(0).getTranslatedText();
+        logger.info("translated text: " + translatedText);
+      }
+      WSResponse wsResponse = new WSResponse();
+      wsResponse.speechResult = result;
+      wsResponse.translatedText = translatedText;
+      getRemote().sendString(gson.toJson(wsResponse));
     } catch (IOException e) {
       logger.log(Level.WARNING, "Error sending to websocket", e);
     }

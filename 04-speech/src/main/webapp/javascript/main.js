@@ -266,12 +266,17 @@
           socket.addEventListener('message', onTranscription);
           startByteStream(e);
         }, {once: true});
-
-        socket.send(JSON.stringify({
+        destLangs = [
+          translateLangsSelect.value,
+          translateLangsSelect2.value
+        ];
+        var request = {
           sampleRate: context.sampleRate,
           srcLang: speechLangsSelect.value,
           destLangs: destLangs,
-        }));
+        };
+        console.log(request);
+        socket.send(JSON.stringify(request));
 
       }).catch(console.log.bind(console));
     }
